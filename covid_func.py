@@ -14,4 +14,4 @@ def gamma_pdf(mean, sd):
     coef_of_variation = sd / mean
     alpha = 1 / coef_of_variation**2
     beta = alpha / mean
-    return lambda x: gamma.pds(x, a=alpha, scale=1/beta)
+    return lambda x: gamma.pdf(x, a=alpha, scale=1/beta)
