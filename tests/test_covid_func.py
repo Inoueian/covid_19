@@ -7,3 +7,7 @@ def test_lognorm_pdf():
 
 def test_gamma_pdf():
     pass
+
+
+def test_create_delay_matrix():
+    pass
