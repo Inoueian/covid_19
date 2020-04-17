@@ -1,6 +1,4 @@
 # covid_19
-Code to perform Bayesian modeling of COVID-19 epidemic
-
 This repo contains Jupyter notebooks that use the pymc3 package in Python to perform Bayesian modeling of the number of infections and deaths from the novel coronavirus, particularly on data from Chicago. Different data set can imported to perform the same analysis.
 
 There are 3 models, from simple to complicated. Only the most complicated model is in any way realistic (it takes into account the change in people's behavior due to shelter-in-place, etc.):
