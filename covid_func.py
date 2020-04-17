@@ -138,16 +138,31 @@ def predict_deaths_exponential(N_0, growth_constant,
                                           IFR)
 
 
-def batch_predict_deaths_from_infections():
-    pass
+def batch_predict_deaths_from_infections(infection_matrix,
+                                         incubation_pdf, delay_pdf,
+                                         IFR=0.0095):
+    """Given a matrix of infections of shape (batch size, num_days),
+    predict the number of deaths for each day.
+
+    Output shape is also (batch size, num_days)"""
+    num_days = infection_matrix.shape[1]
+
+    incubation_array = np.array([incubation_pdf(x) for x in range(num_days)])
+    incubation_mat = create_delay_matrix(incubation_array)
+    delay_array = np.array([delay_pdf(x) for x in range(num_days)])
+    delay_mat = create_delay_matrix(delay_array)
+
+    transfer_mat = np.matmul(incubation_mat, delay_mat)
+
+    return IFR * np.matmul(infection_matrix, transfer_mat)
 
 
 def batch_predict_deaths_exponential(initial_array, growth_array,
                                      incubation_pdf, delay_pdf, num_days,
                                      IFR=0.0095):
-    """Do prediction of the number of infections for a batch of parameters.
+    """Do prediction of the number of deaths for a batch of parameters.
 
-    The output has shape (batch_size, num_days)"""
+    The output has shape (batch size, num_days)"""
     N_matrix = batch_predict_N_exponential(initial_array, growth_array, num_days)
 
     incubation_array = np.array([incubation_pdf(x) for x in range(num_days)])
