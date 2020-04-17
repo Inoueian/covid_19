@@ -1,7 +1,7 @@
 # covid_19
 This repo contains Jupyter notebooks that use the pymc3 package in Python to perform Bayesian modeling of the number of infections and deaths from the novel coronavirus, particularly on data from Chicago. Different data set can imported to perform the same analysis.
 
-There are 3 models, from simple to complicated. Only the most complicated model is in any way realistic (it takes into account the change in people's behavior due to shelter-in-place, etc.):
+There are 3 models, from simple to complicated. Only the most complicated model is in any way realistic (it takes into account the change in people's behavior due to shelter-in-place, etc.), but the simpler models should help the understanding of the change point model:
 1. [Exponential model](../blob/master/notebooks/exponential_model.ipynb) assumes that the number of infections increases as a simple exponential function.
 2. [Generation interval model](../blob/master/notebooks/generation_interval_model.ipynb) assumes that the basic reproduction number, `R_0`, is applicable for all time.
 3. [Change point model](../blob/master/notebooks/change_point_model.ipynb) assumes that the reproduction number, `R`, changed from the initial value, `R_0`, to a smaller value, by some ratio, `R_ratio`, between 0 and 1.
