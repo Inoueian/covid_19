@@ -34,35 +34,86 @@ def create_delay_matrix(array, num_days=None):
     return np.array(list_of_lists)
 
 
-def predict_N_exponential(num_days, N_0, growth_constant):
+def create_infection_tensor(generation_array, num_days):
+    """Given num_days,
+    return array of infection matrices so that
+    multiplying the initial vector [1., 0., 0., ...]
+    by result[0] * R0 and adding the last vector,
+    multiplying by result[1] * R0 and adding the last vector, ...
+    recursively results in the predicted number of new infections for each day."""
+    list_of_matrices = []
+    for index in range(num_days):
+        non_zero_row = np.concatenate([np.zeros(index),
+                                       generation_array[:num_days-index]]).reshape((1, num_days))
+        matrix = np.vstack([np.zeros((index, num_days)),
+                            non_zero_row,
+                            np.zeros((num_days - index - 1, num_days))])
+        list_of_matrices.append(matrix)
+    return np.stack(list_of_matrices)
+
+
+def predict_N_exponential(N_0, growth_constant, num_days):
     """Given N_0 and growth_constant,
     predict the number of infections up to some point in time, given by num_days,
-    using the exponential growth model"""
+    using the exponential growth model."""
     return N_0 * np.exp(growth_constant * np.arange(num_days))
 
 
-def batch_predict_N_exponential(num_days, initial_array, growth_array):
-    """Do prediction of the number of infections for a batch of parameters.
+def predict_N_generation(N_0, R_0, num_days, mean_g=6.5, sd_g=0.6*6.5):
+    """Given N_0 and R_0,
+    predict the number of infections up to some point in time, given by num_days,
+    using the generation interval model.
+
+    The generation interval distribution can be adjusted with
+    mean_g and sd_g parameters, for its mean and standard deviation."""
+    N_array = N_0 * np.array([1.] + [0.] * (num_days - 1))
+
+    generation_pdf = gamma_pdf(mean_g, sd_g)
+    generation_array = np.array([generation_pdf(x)
+                                 for x in range(num_days)])
+    infection_tensor = create_infection_tensor(generation_array, num_days)
+    for tensor in infection_tensor[:-1]:
+        N_array += R_0 * np.matmul(N_array, tensor)
+
+    return N_array
+
+
+def batch_predict_N_exponential(initial_array, growth_array, num_days):
+    """Do prediction of the number of infections for a batch of parameters,
+    using the exponential model.
 
     The output has shape (batch_size, num_days)"""
-    return np.array([predict_N_exponential(num_days, N_0, growth_constant)
+    return np.array([predict_N_exponential(N_0, growth_constant, num_days)
                      for N_0, growth_constant in zip(initial_array,
                                                      growth_array)])
 
 
-def predict_deaths_exponential(num_days, N_0, growth_constant,
-                               incubation_pdf, delay_pdf,
-                               IFR=0.0095):
-    """Given N_0, growth_constant, and parameters that determine
+def batch_predict_N_generation(initial_array, R_0_array, num_days,
+                               mean_g=6.5, sd_g=0.6*6.5):
+    """Do prediction of the number of infections for a batch of parameter,
+    using the generation interval model.
+
+    The output has shape (batch_size, num_days)"""
+    return np.array([predict_N_generation(N_0, R_0, num_days,
+                                          mean_g=mean_g, sd_g=sd_g)
+                     for N_0, R_0 in zip(initial_array, R_0_array)])
+
+
+def predict_deaths_from_infections(infection_array,
+                                   incubation_pdf, delay_pdf,
+                                   num_days=None, IFR=0.0095):
+    """Given the array of new infections, and parameters that determine
     the propagation of cases to death,
     predict the expected number of deaths up to some point in time, given by num_days
     using the exponential growth model.
 
     Calculating a whole range of days is more efficient than
     calculating one day at a time.
-    """
-    N_array = N_0 * np.exp(growth_constant * np.arange(num_days))
 
+    num_days can either be specified,
+    or left unspecified, when it will be inferred from length of infection_array."""
+    if num_days is None:
+        num_days = len(infection_array)
     incubation_array = np.array([incubation_pdf(x) for x in range(num_days)])
     incubation_mat = create_delay_matrix(incubation_array)
     delay_array = np.array([delay_pdf(x) for x in range(num_days)])
@@ -70,15 +121,34 @@ def predict_deaths_exponential(num_days, N_0, growth_constant,
 
     transfer_mat = np.matmul(incubation_mat, delay_mat)
 
-    return IFR * np.matmul(N_array, transfer_mat)
+    return IFR * np.matmul(infection_array, transfer_mat)
 
 
-def batch_predict_deaths_exponential(num_days, initial_array, growth_array,
-                                     incubation_pdf, delay_pdf, IFR=0.0095):
+def predict_deaths_exponential(N_0, growth_constant,
+                               incubation_pdf, delay_pdf, num_days,
+                               IFR=0.0095):
+    """Given N_0, growth_constant, and parameters that determine
+    the propagation of cases to death,
+    predict the expected number of deaths up to some point in time, given by num_days
+    using the exponential growth model.
+    """
+    infection_array = N_0 * np.exp(growth_constant * np.arange(num_days))
+    return predict_deaths_from_infections(infection_array,
+                                          incubation_pdf, delay_pdf, num_days,
+                                          IFR)
+
+
+def batch_predict_deaths_from_infections():
+    pass
+
+
+def batch_predict_deaths_exponential(initial_array, growth_array,
+                                     incubation_pdf, delay_pdf, num_days,
+                                     IFR=0.0095):
     """Do prediction of the number of infections for a batch of parameters.
 
     The output has shape (batch_size, num_days)"""
-    N_matrix = batch_predict_N_exponential(num_days, initial_array, growth_array)
+    N_matrix = batch_predict_N_exponential(initial_array, growth_array, num_days)
 
     incubation_array = np.array([incubation_pdf(x) for x in range(num_days)])
     incubation_mat = create_delay_matrix(incubation_array)
