@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.stats.distributions import gamma, lognorm
+from scipy.stats.distributions import gamma, lognorm, weibull_min
 
 
 def lognorm_pdf(mean, sd):
@@ -15,6 +15,11 @@ def gamma_pdf(mean, sd):
     alpha = 1 / coef_of_variation**2
     beta = alpha / mean
     return lambda x: gamma.pdf(x, a=alpha, scale=1/beta)
+
+
+def weibull_pdf(shape, scale):
+    """Define a Weibull distribution PDF from its shape and scale parameters"""
+    return lambda x: weibull_min.pdf(x, c=shape, scale=scale)
 
 
 def create_delay_matrix(array, num_days=None):
@@ -59,16 +64,15 @@ def predict_N_exponential(N_0, growth_constant, num_days):
     return N_0 * np.exp(growth_constant * np.arange(num_days))
 
 
-def predict_N_generation(N_0, R_0, num_days, mean_g=6.5, sd_g=0.6*6.5):
+def predict_N_generation(N_0, R_0, num_days, generation_pdf):
     """Given N_0 and R_0,
     predict the number of infections up to some point in time, given by num_days,
     using the generation interval model.
 
-    The generation interval distribution can be adjusted with
-    mean_g and sd_g parameters, for its mean and standard deviation."""
+    The generation interval distribution is specified by the PDF,
+    a function of the number of days since infection."""
     N_array = N_0 * np.array([1.] + [0.] * (num_days - 1))
 
-    generation_pdf = gamma_pdf(mean_g, sd_g)
     generation_array = np.array([generation_pdf(x)
                                  for x in range(num_days)])
     infection_tensor = create_infection_tensor(generation_array, num_days)
@@ -79,19 +83,18 @@ def predict_N_generation(N_0, R_0, num_days, mean_g=6.5, sd_g=0.6*6.5):
 
 
 def predict_N_change_point(N_0, R_0, R_ratio, change_point,
-                           num_days, mean_g=6.5, sd_g=0.6 * 6.5):
+                           num_days, generation_pdf):
     """Given N_0, R_0, R_ratio, and change_point
     predict the number of infections up to some point in time, given by num_days,
     using the change point model.
 
-    The generation interval distribution can be adjusted with
-    mean_g and sd_g parameters, for its mean and standard deviation."""
+    The generation interval distribution is specified by the PDF,
+    a function of the number of days since infection."""
     R = np.array([R_0 if day < change_point
                   else R_0 * R_ratio
                   for day in range(num_days)])
     R_mat = np.diag(R)
 
-    generation_pdf = gamma_pdf(mean_g, sd_g)
     generation_array = np.array([generation_pdf(x)
                                  for x in range(num_days)])
     infection_tensor = create_infection_tensor(generation_array, num_days)
@@ -114,25 +117,25 @@ def batch_predict_N_exponential(initial_array, growth_array, num_days):
 
 
 def batch_predict_N_generation(initial_array, R_0_array, num_days,
-                               mean_g=6.5, sd_g=0.6*6.5):
+                               generation_pdf):
     """Do prediction of the number of infections for a batch of parameter,
     using the generation interval model.
 
     The output has shape (batch_size, num_days)"""
     return np.array([predict_N_generation(N_0, R_0, num_days,
-                                          mean_g=mean_g, sd_g=sd_g)
+                                          generation_pdf)
                      for N_0, R_0 in zip(initial_array, R_0_array)])
 
 
 def batch_predict_N_change_point(initial_array, R_0_array,
                                  R_ratio_array, change_point_array, num_days,
-                                 mean_g=6.5, sd_g=0.6*6.5):
+                                 generation_pdf):
     """Do prediction of the number of infections for a batch of parameter,
     using the generation interval model.
 
     The output has shape (batch_size, num_days)"""
     return np.array([predict_N_change_point(N_0, R_0, R_ratio, change_point,
-                                            num_days, mean_g=mean_g, sd_g=sd_g)
+                                            num_days, generation_pdf)
                      for N_0, R_0, R_ratio, change_point in zip(initial_array,
                                                                 R_0_array,
                                                                 R_ratio_array,
