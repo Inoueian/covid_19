@@ -106,6 +106,32 @@ def predict_N_change_point(N_0, R_0, R_ratio, change_point,
     return N_array
 
 
+def predict_N_2_change_points(N_0, R_0, R_ratio_0, R_ratio_1,
+                              change_point_0, change_point_1,
+                              num_days, generation_pdf):
+    """Given N_0, R_0, R_ratio_0, R_ratio_1, change_point_0, and change_point_1
+    predict the number of infections up to some point in time, given by num_days,
+    using the change point model.
+
+    The generation interval distribution is specified by the PDF,
+    a function of the number of days since infection."""
+    R = np.array([R_0 if day < change_point_0
+                  else (R_0 * R_ratio_0 if day < change_point_1
+                        else R_0 * R_ratio_0 * R_ratio_1)
+                  for day in range(num_days)])
+    R_mat = np.diag(R)
+
+    generation_array = np.array([generation_pdf(x)
+                                 for x in range(num_days)])
+    infection_tensor = create_infection_tensor(generation_array, num_days)
+
+    N_array = N_0 * np.array([1.] + [0.] * (num_days - 1))
+    for tensor in infection_tensor[:-1]:
+        N_array += np.matmul(np.matmul(N_array, tensor),
+                             R_mat)
+    return N_array
+
+
 def batch_predict_N_exponential(initial_array, growth_array, num_days):
     """Do prediction of the number of infections for a batch of parameters,
     using the exponential model.
@@ -131,7 +157,7 @@ def batch_predict_N_change_point(initial_array, R_0_array,
                                  R_ratio_array, change_point_array, num_days,
                                  generation_pdf):
     """Do prediction of the number of infections for a batch of parameter,
-    using the generation interval model.
+    using the change point model.
 
     The output has shape (batch_size, num_days)"""
     return np.array([predict_N_change_point(N_0, R_0, R_ratio, change_point,
@@ -140,6 +166,28 @@ def batch_predict_N_change_point(initial_array, R_0_array,
                                                                 R_0_array,
                                                                 R_ratio_array,
                                                                 change_point_array[0])])
+
+
+def batch_predict_N_2_change_points(initial_array, R_0_array,
+                                    R_ratio_0_array, R_ratio_1_array,
+                                    change_point_0_array, change_point_1_array,
+                                    num_days, generation_pdf):
+    """Do prediction of the number of infections for a batch of parameter,
+    using the model with 2 change points.
+
+    The output has shape (batch_size, num_days)"""
+    return np.array([predict_N_2_change_points(N_0, R_0, R_ratio_0, R_ratio_1,
+                                               change_point_0, change_point_1,
+                                               num_days, generation_pdf)
+                     for (N_0, R_0,
+                          R_ratio_0, R_ratio_1,
+                          change_point_0,
+                          change_point_1) in zip(initial_array,
+                                                 R_0_array,
+                                                 R_ratio_0_array,
+                                                 R_ratio_1_array,
+                                                 change_point_0_array[0],
+                                                 change_point_1_array[0])])
 
 
 def predict_deaths_from_infections(infection_array,
